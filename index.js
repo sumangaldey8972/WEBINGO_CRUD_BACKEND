@@ -1,8 +1,20 @@
 const express = require("express");
 const connect = require("./database/connection");
-const PORT = 8080;
+const router = require("./routes/user.routes");
+const PORT = process.env.PORT;
 const app = express();
+const session = require("express-session");
+
+app.use(
+  session({
+    secret: process.env.SESSION_SECRET_KEY,
+    resave: false,
+    saveUninitialized: false,
+  })
+);
 app.use(express.json());
+
+app.use("/", router);
 
 app.get("/", (req, res) => {
   res.send("Welcome to CRUD application");
