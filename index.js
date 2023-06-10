@@ -1,10 +1,11 @@
 const express = require("express");
 const connect = require("./database/connection");
 const router = require("./routes/user.routes");
+const cors = require("cors");
 const PORT = process.env.PORT;
 const app = express();
 const session = require("express-session");
-
+app.use(cors());
 app.use(
   session({
     secret: process.env.SESSION_SECRET_KEY,

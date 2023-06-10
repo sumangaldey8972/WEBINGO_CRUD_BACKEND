@@ -6,11 +6,12 @@ let token_secret_key = process.env.TOKEN_SECRET_KEY;
 exports.create_user = async (req, res) => {
   try {
     const { user_email, user_role } = req.body;
+    console.log("user email", user_email);
     const { token } = req.headers;
-
+    console.log("chek create user", token);
     let is_existing_user = await userModel.findOne({ user_email });
     let check_user_role = jwt.verify(token, token_secret_key);
-    console.log("token details", check_user_role);
+    console.log("role", check_user_role, is_existing_user);
 
     if (user_role == "manager") {
       if (check_user_role.role == "admin") {
@@ -20,6 +21,7 @@ exports.create_user = async (req, res) => {
             .send({ status: false, message: "email already exist" });
         } else {
           let new_user = await userModel.create(req.body);
+          // await sendMail(new_user);
           return res.status(200).send({
             status: true,
             message: "new manager added successfully",
@@ -27,21 +29,26 @@ exports.create_user = async (req, res) => {
           });
         }
       } else {
-        return res
-          .status(401)
-          .send(`you do not have access to create ${user_role}`);
+        return res.status(401).send({
+          status: false,
+          message: `you do not have access to create ${user_role}`,
+        });
       }
     } else if (user_role == "user") {
+      console.log("check user role", user_role);
       if (check_user_role.role == "manager") {
+        console.log("check manger role", check_user_role.role);
         if (is_existing_user) {
           return res
             .status(409)
             .send({ status: false, message: "email already exist" });
         } else {
+          console.log("user data", req.body);
           let new_user = await userModel.create({
             ...req.body,
             manager: check_user_role.id,
           });
+          console.log(new_user, "new_user");
           return res.status(200).send({
             status: true,
             message: "new user added successfully",
@@ -49,24 +56,19 @@ exports.create_user = async (req, res) => {
           });
         }
       } else {
-        return res
-          .status(401)
-          .send(`you do not have access to create ${user_role}`);
+        return res.status(401).send({
+          status: false,
+          message: `you do not have access to create ${user_role}`,
+        });
       }
-    }
-    // else if (user_role == "admin") {
-    //   let admin = await userModel.create(req.body);
-    //   return res.status(200).send({
-    //     stauts: true,
-    //     message: "Admin Added successfully",
-    //     admin: admin,
-    //   });
-    else {
-      return res
-        .status(401)
-        .send(`you do not have access to create ${user_role}`);
+    } else {
+      return res.status(401).send({
+        status: false,
+        message: `you do not have access to create ${user_role}`,
+      });
     }
   } catch (err) {
+    console.log(err);
     return res
       .status(500)
       .send({ status: false, message: "server error while creating user" });
@@ -75,8 +77,8 @@ exports.create_user = async (req, res) => {
 
 exports.authenticate_user = async (req, res) => {
   try {
-    let { user_email, user_password } = req.body;
-    let is_user = await userModel.findOne({ user_email });
+    let { user_email, user_name, user_password } = req.body;
+    let is_user = await userModel.findOne({ user_name });
     console.log("check login", is_user);
     if (!is_user) {
       return res
@@ -86,13 +88,16 @@ exports.authenticate_user = async (req, res) => {
       return res
         .status(401)
         .send({ status: false, message: "password do not match" });
+    } else if (is_user.user_role == "user") {
+      return res.status(401).send({
+        status: false,
+        message: "you are not allowed perform any operations",
+      });
     } else {
-      req.session.details = { _id: is_user._id, email: is_user.user_email };
-
       const jwt_token = jwt.sign(
         {
           id: is_user._id,
-          email: is_user.user_email,
+          user_name: is_user.user_name,
           role: is_user.user_role,
         },
         token_secret_key,
@@ -100,13 +105,17 @@ exports.authenticate_user = async (req, res) => {
           expiresIn: "20 min",
         }
       );
-
-      console.log(req.session.details);
+      // req.session.details = {
+      //   _id: is_user._id,
+      //   email: is_user.user_email,
+      //   token: jwt_token,
+      // };
+      // console.log("session", req.session.details);
       return res.status(200).send({
         status: true,
         message: "login successfull!",
+        // user_name: is_user.user_name,
         token: jwt_token,
-        user_name: is_user.user_name,
       });
     }
   } catch (err) {
@@ -143,5 +152,157 @@ exports.user_list = async (req, res) => {
       status: false,
       message: "server error while getting user lists",
     });
+  }
+};
+
+exports.edit_user = async (req, res) => {
+  try {
+    let { token } = req.headers;
+    let check_user_role = jwt.verify(token, token_secret_key);
+    let find_user_by_id = await userModel.findOne({ _id: req.params.id });
+    if (!find_user_by_id) {
+      return res.status(409).send({ status: false, message: "user not found" });
+    } else if (
+      find_user_by_id.user_role == "manager" &&
+      check_user_role.role == "admin"
+    ) {
+      if (req.body.user_role == "user") {
+        return res
+          .status(401)
+          .send({ status: false, message: "you can not edit manager to user" });
+      }
+      let checking_existing_mail = await userModel.find({
+        user_email: req.body.user_email,
+      });
+      if (checking_existing_mail) {
+        return res
+          .status(401)
+          .send({ status: false, message: "email id already exist" });
+      }
+      let updated_user = await userModel.updateOne(
+        { _id: req.params.id },
+        {
+          $set: {
+            user_name: req.body.user_name,
+            user_role: req.body.user_role,
+            user_email: req.body.user_email,
+            user_dob: req.body.user_dob,
+            user_password: req.body.user_password,
+            user_phone_number: req.body.user_phone_number,
+          },
+        },
+        { new: true }
+      );
+      return res.status(200).send({
+        status: true,
+        message: "updated successfully",
+        data: updated_user,
+      });
+    } else if (
+      find_user_by_id.user_role == "user" &&
+      check_user_role.role == "manager"
+    ) {
+      if (req.body.user_role == "manager" || req.body.user_role == "admin") {
+        return res.status(401).send({
+          status: false,
+          message: `you can not edit user to ${req.body.user_role}`,
+        });
+      }
+      let checking_existing_mail = await userModel.find({
+        user_email: req.body.user_email,
+      });
+      if (checking_existing_mail) {
+        return res
+          .status(401)
+          .send({ status: false, message: "email id already exist" });
+      }
+      let updated_user = await userModel.updateOne(
+        { _id: req.params.id },
+        {
+          $set: {
+            user_name: req.body.user_name,
+            user_role: req.body.user_role,
+            user_email: req.body.user_email,
+            user_dob: req.body.user_dob,
+            user_password: req.body.user_password,
+            user_phone_number: req.body.user_phone_number,
+          },
+        },
+        { new: true }
+      );
+      return res.status(200).send({
+        status: true,
+        message: "updated successfully",
+        data: updated_user,
+      });
+    }
+  } catch (err) {
+    return res.status(500).send({
+      status: false,
+      message: "Server error while editing the user",
+    });
+  }
+};
+
+exports.delete_user = async (req, res) => {
+  try {
+    let { token } = req.headers;
+    let { id } = req.params;
+    let check_user_role = jwt.verify(token, token_secret_key);
+    let find_user_by_id = await userModel.findOne({ _id: id });
+
+    if (!find_user_by_id) {
+      return res.status(409).send({ status: false, message: "user not found" });
+    } else if (
+      find_user_by_id.user_role == "manager" &&
+      check_user_role.role == "admin"
+    ) {
+      let deleted_user = await userModel.deleteOne({ _id: id });
+      return res.status(200).send({
+        status: true,
+        message: "user Deleted !",
+        deleted_user: deleted_user,
+      });
+    } else if (
+      find_user_by_id.user_role == "user" &&
+      check_user_role.role == "manager"
+    ) {
+      let deleted_user = await userModel.deleteOne({ _id: id });
+      return res.status(200).send({
+        status: true,
+        message: "user Deleted !",
+        deleted_user: deleted_user,
+      });
+    } else {
+      return res.status(409).send({
+        status: false,
+        message: `you can not delete ${find_user_by_id.user_role}`,
+      });
+    }
+  } catch (err) {
+    return res
+      .status(500)
+      .send({ status: false, message: "server while deleting user" });
+  }
+};
+
+exports.check_session = (req, res) => {
+  try {
+    console.log(req.session);
+    if (req.session) {
+      return res.status(200).send({
+        status: true,
+        message: "session found",
+        body: req.session,
+      });
+    } else {
+      return res
+        .status(404)
+        .send({ status: false, message: "session not found" });
+    }
+  } catch (err) {
+    return res
+      .status(500)
+      .send({ status: false, message: "server error while checking sessions" });
   }
 };
