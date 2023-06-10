@@ -5,6 +5,8 @@ const cors = require("cors");
 const PORT = process.env.PORT;
 const app = express();
 const session = require("express-session");
+const fileupload = require("express-fileupload");
+app.use(fileupload());
 app.use(cors());
 app.use(
   session({

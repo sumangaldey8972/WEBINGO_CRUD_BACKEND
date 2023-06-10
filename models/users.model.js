@@ -10,6 +10,7 @@ const userSchema = mongoose.Schema(
     user_dob: { type: Date },
     user_phone_number: { type: String },
     manager: { type: mongoose.Schema.Types.ObjectId, ref: "user" },
+    image: { type: String },
   },
   { timeStamps: true }
 );

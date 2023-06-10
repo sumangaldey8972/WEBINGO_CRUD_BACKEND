@@ -1,3 +1,4 @@
+const { uploadFile } = require("../function/upload");
 const userModel = require("../models/users.model");
 const jwt = require("jsonwebtoken");
 
@@ -5,75 +6,128 @@ let token_secret_key = process.env.TOKEN_SECRET_KEY;
 
 exports.create_user = async (req, res) => {
   try {
+    console.log("req body", req.body);
+    console.log(req.files, "filess");
     const { user_email, user_role } = req.body;
-    console.log("user email", user_email);
-    const { token } = req.headers;
-    console.log("chek create user", token);
     let is_existing_user = await userModel.findOne({ user_email });
-    let check_user_role = jwt.verify(token, token_secret_key);
-    console.log("role", check_user_role, is_existing_user);
-
-    if (user_role == "manager") {
-      if (check_user_role.role == "admin") {
-        if (is_existing_user) {
-          return res
-            .status(409)
-            .send({ status: false, message: "email already exist" });
-        } else {
-          let new_user = await userModel.create(req.body);
-          // await sendMail(new_user);
-          return res.status(200).send({
-            status: true,
-            message: "new manager added successfully",
-            new_user: new_user,
-          });
-        }
-      } else {
-        return res.status(401).send({
-          status: false,
-          message: `you do not have access to create ${user_role}`,
-        });
-      }
-    } else if (user_role == "user") {
-      console.log("check user role", user_role);
-      if (check_user_role.role == "manager") {
-        console.log("check manger role", check_user_role.role);
-        if (is_existing_user) {
-          return res
-            .status(409)
-            .send({ status: false, message: "email already exist" });
-        } else {
-          console.log("user data", req.body);
-          let new_user = await userModel.create({
-            ...req.body,
-            manager: check_user_role.id,
-          });
-          console.log(new_user, "new_user");
-          return res.status(200).send({
-            status: true,
-            message: "new user added successfully",
-            new_user: new_user,
-          });
-        }
-      } else {
-        return res.status(401).send({
-          status: false,
-          message: `you do not have access to create ${user_role}`,
-        });
-      }
+    console.log("hhhhhhhhhh", is_existing_user);
+    if (is_existing_user) {
+      return res
+        .status(409)
+        .send({ status: false, message: "email already exist" });
     } else {
-      return res.status(401).send({
-        status: false,
-        message: `you do not have access to create ${user_role}`,
+      const url = await uploadFile(req.files.image.data);
+      console.log(url);
+      const { token } = req.headers;
+      let check_user_role = await new Promise((resolve, reject) => {
+        jwt.verify(token, token_secret_key, (error, decoded) => {
+          if (error) {
+            reject({ status: false, error: error });
+          } else {
+            resolve({ status: true, decoded: decoded });
+          }
+        });
       });
+      if (check_user_role.status) {
+        console.log("check user role", check_user_role);
+        const data = {
+          user_name: req.body.user_name,
+          user_email: req.body.user_email,
+          user_password: req.body.user_password,
+          user_role: req.body.user_role,
+          user_dob: req.body.user_dob,
+          user_phone_number: req.body.user_phone_number,
+          manager: check_user_role.decoded.id,
+          image: url,
+        };
+        const response = await userModel.create(data);
+        console.log(response);
+        return res.status(200).send({
+          status: true,
+          message: `new ${req.body.user_role} added successfully`,
+        });
+      } else {
+        console.log(check_user_role, "chekc rol");
+        return res.status(500).send({ status: false, message: "Token Expire" });
+      }
     }
-  } catch (err) {
-    console.log(err);
+  } catch (error) {
     return res
       .status(500)
-      .send({ status: false, message: "server error while creating user" });
+      .send({ status: false, message: "Internal Server Error" });
   }
 };
+// exports.create_user = async (req, res) => {
+//   try {
+//     const { user_email, user_role } = req.body;
+//     console.log("user email", user_email);
+//     const { token } = req.headers;
+//     console.log("chek create user", token);
+//     let is_existing_user = await userModel.findOne({ user_email });
+//     let check_user_role = jwt.verify(token, token_secret_key);
+//     console.log("role", check_user_role, is_existing_user);
+
+//     if (user_role == "manager") {
+//       if (check_user_role.role == "admin") {
+//         if (is_existing_user) {
+//           return res
+//             .status(409)
+//             .send({ status: false, message: "email already exist" });
+//         } else {
+//           let new_user = await userModel.create(req.body);
+//           // await sendMail(new_user);
+//           return res.status(200).send({
+//             status: true,
+//             message: "new manager added successfully",
+//             new_user: new_user,
+//           });
+//         }
+//       } else {
+//         return res.status(401).send({
+//           status: false,
+//           message: `you do not have access to create ${user_role}`,
+//         });
+//       }
+//     } else if (user_role == "user") {
+//       console.log("check user role", user_role);
+//       if (check_user_role.role == "manager") {
+//         console.log("check manger role", check_user_role.role);
+//         if (is_existing_user) {
+//           return res
+//             .status(409)
+//             .send({ status: false, message: "email already exist" });
+//         } else {
+//           console.log("user data", req.body);
+//           let new_user = await userModel.create({
+//             ...req.body,
+//             manager: check_user_role.id,
+//           });
+//           console.log(new_user, "new_user");
+//           return res.status(200).send({
+//             status: true,
+//             message: "new user added successfully",
+//             new_user: new_user,
+//           });
+//         }
+//       } else {
+//         return res.status(401).send({
+//           status: false,
+//           message: `you do not have access to create ${user_role}`,
+//         });
+//       }
+//     } else {
+//       return res.status(401).send({
+//         status: false,
+//         message: `you do not have access to create ${user_role}`,
+//       });
+//     }
+//   } catch (err) {
+//     console.log(err);
+//     return res
+//       .status(500)
+//       .send({ status: false, message: "server error while creating user" });
+//   }
+// };
 
 exports.authenticate_user = async (req, res) => {
   try {
@@ -128,13 +182,22 @@ exports.authenticate_user = async (req, res) => {
 exports.user_list = async (req, res) => {
   try {
     let { token } = req.headers;
+    let { id } = req.query;
+    console.log("id==============", id);
     let check_user_role = jwt.verify(token, token_secret_key);
-    console.log("cheeck user role", check_user_role);
+    console.log("jwt check", check_user_role.role);
     if (check_user_role.role == "admin") {
-      let data = await userModel.find({ user_role: "manager" });
-      return res
-        .status(200)
-        .send({ status: true, message: "Manager Lists", body: data });
+      if (id) {
+        let data = await userModel.find({ manager: id });
+        return res
+          .status(200)
+          .send({ status: true, message: "Manager user Lists", body: data });
+      } else {
+        let data = await userModel.find({ user_role: "manager" });
+        return res
+          .status(200)
+          .send({ status: true, message: "Manager Lists", body: data });
+      }
     } else if (check_user_role.role == "manager") {
       console.log("manager login", check_user_role);
       let data = await userModel.find({ manager: check_user_role.id });
@@ -148,6 +211,7 @@ exports.user_list = async (req, res) => {
       });
     }
   } catch (err) {
+    console.log(err);
     return res.status(500).send({
       status: false,
       message: "server error while getting user lists",
@@ -160,6 +224,7 @@ exports.edit_user = async (req, res) => {
     let { token } = req.headers;
     let check_user_role = jwt.verify(token, token_secret_key);
     let find_user_by_id = await userModel.findOne({ _id: req.params.id });
+    console.log("req, params", req.params);
     if (!find_user_by_id) {
       return res.status(409).send({ status: false, message: "user not found" });
     } else if (
@@ -171,14 +236,9 @@ exports.edit_user = async (req, res) => {
           .status(401)
           .send({ status: false, message: "you can not edit manager to user" });
       }
-      let checking_existing_mail = await userModel.find({
+      let checking_existing_mail = await userModel.findOne({
         user_email: req.body.user_email,
       });
-      if (checking_existing_mail) {
-        return res
-          .status(401)
-          .send({ status: false, message: "email id already exist" });
-      }
       let updated_user = await userModel.updateOne(
         { _id: req.params.id },
         {
@@ -237,6 +297,19 @@ exports.edit_user = async (req, res) => {
       });
     }
   } catch (err) {
+    return res.status(500).send({
+      status: false,
+      message: "Server error while editing the user",
+    });
+  }
+};
+
+exports.get_user_by_id = async (req, res) => {
+  try {
+    let { id } = req.params;
+    let manager_data = await userModel.findOne({ _id: id });
+    return res.status(200).send({ status: true, body: manager_data });
+  } catch (error) {
     return res.status(500).send({
       status: false,
       message: "Server error while editing the user",
