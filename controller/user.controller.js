@@ -156,7 +156,7 @@ exports.authenticate_user = async (req, res) => {
         },
         token_secret_key,
         {
-          expiresIn: "20 min",
+          expiresIn: "180 min",
         }
       );
       // req.session.details = {
