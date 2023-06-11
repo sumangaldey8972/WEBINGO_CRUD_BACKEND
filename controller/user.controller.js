@@ -236,9 +236,9 @@ exports.edit_user = async (req, res) => {
           .status(401)
           .send({ status: false, message: "you can not edit manager to user" });
       }
-      let checking_existing_mail = await userModel.findOne({
-        user_email: req.body.user_email,
-      });
+      // let checking_existing_mail = await userModel.findOne({
+      //   user_email: req.body.user_email,
+      // });
       let updated_user = await userModel.updateOne(
         { _id: req.params.id },
         {
@@ -271,11 +271,11 @@ exports.edit_user = async (req, res) => {
       let checking_existing_mail = await userModel.find({
         user_email: req.body.user_email,
       });
-      if (checking_existing_mail) {
-        return res
-          .status(401)
-          .send({ status: false, message: "email id already exist" });
-      }
+      // if (checking_existing_mail) {
+      //   return res
+      //     .status(401)
+      //     .send({ status: false, message: "email id already exist" });
+      // }
       let updated_user = await userModel.updateOne(
         { _id: req.params.id },
         {
@@ -297,6 +297,7 @@ exports.edit_user = async (req, res) => {
       });
     }
   } catch (err) {
+    console.log("error", err);
     return res.status(500).send({
       status: false,
       message: "Server error while editing the user",
